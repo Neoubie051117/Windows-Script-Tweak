@@ -34,14 +34,14 @@ pause
 goto menu
 
 :: -------------------------------
-:: Disable Routine
+:: Disable Routine (Only UI Restrictions)
 :: -------------------------------
 :disable
 echo.
-call :log progress "Disabling Microsoft Account Sign-In..."
+call :log progress "Disabling Microsoft Account Sign-In UI..."
 
 :: Apply registry changes with error checking
-call :apply_registry_changes 3 2 0 0 || exit /b 1
+call :apply_registry_changes 3 0 0 0 || exit /b 1
 
 :: Hide Settings Page by adding a marker value
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v SettingsPageVisibility /t REG_SZ /d "hide:signinoptions" /f >nul || (
@@ -52,11 +52,9 @@ reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v Se
 :: Refresh system policies
 call :refresh_policies
 
-:: Modify hosts file: Add marker for Microsoft domains
-call :manage_hosts disable || exit /b 1
-
 echo.
-call :log success "MICROSOFT ACCOUNT SIGN-IN IS NOW DISABLED"
+call :log success "MICROSOFT ACCOUNT SIGN-IN UI IS NOW HIDDEN"
+call :log info "Note: Browser services and Store downloads remain functional"
 pause
 exit /b
 
@@ -76,11 +74,8 @@ reg delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v
 :: Refresh system policies
 call :refresh_policies
 
-:: Modify hosts file: Remove marker entries
-call :manage_hosts enable || exit /b 1
-
 echo.
-call :log success "MICROSOFT ACCOUNT SIGN-IN IS NOW ENABLED"
+call :log success "MICROSOFT ACCOUNT SIGN-IN OPTIONS RESTORED"
 pause
 exit /b
 
@@ -108,33 +103,6 @@ call :log info "Refreshing system policies..."
 gpupdate /force >nul
 taskkill /f /im explorer.exe >nul && start explorer.exe
 exit /b %errorlevel%
-
-:: -------------------------------
-:: Subroutine: Manage Hosts File
-:: Uses marker comments to reliably add or remove lines
-:: -------------------------------
-:manage_hosts
-set "hosts=%SystemRoot%\System32\drivers\etc\hosts"
-set "marker=##MICROSOFT_SIGNIN_BLOCK##"
-set "domains=account.microsoft.com login.live.com signup.live.com"
-
-if /I "%1"=="disable" (
-    attrib -r "%hosts%" 2>nul
-    for %%d in (%domains%) do (
-        rem Check if the marker line for this domain exists; if not, add it
-        findstr /i /c:"127.0.0.1 %%d %marker%" "%hosts%" >nul || (
-            echo 127.0.0.1 %%d %marker% >> "%hosts%"
-        )
-    )
-    attrib +r "%hosts%" 2>nul
-) else (
-    attrib -r "%hosts%" 2>nul
-    rem Create a temporary file without the marker lines
-    findstr /v /i /c:"%marker%" "%hosts%" > "%hosts%.tmp"
-    move /y "%hosts%.tmp" "%hosts%" >nul
-    attrib +r "%hosts%" 2>nul
-)
-exit /b 0
 
 :: -------------------------------
 :: Subroutine: Log Messages with Colors

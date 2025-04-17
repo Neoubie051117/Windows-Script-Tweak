@@ -119,7 +119,7 @@ call :create_backup_dir || exit /b %ERR_BACKUP%
 echo.  &:: Add blank line after backup creation
 
 :: ------ Phase Execution ------
-set "phases=Implementing_Bloat_Features Clean_System Harden_Security Validate_System"
+set "phases=Implementing_Bloat_Features Clean_System Security_Configuration Validate_System"
 set "phase_count=4"
 set "current_phase=0"
 
@@ -366,7 +366,7 @@ exit /b 0
 :: End of Phase 2 Functions Processes
 
 ::Start of Phase 3 Functions Processes
-:Harden_Security
+:Security_Configuration
 call :log info "Cleaning...."
 call :log info "C:\ProgramData\Microsoft\Windows Defender\Scans\History\Service"
 setlocal enabledelayedexpansion

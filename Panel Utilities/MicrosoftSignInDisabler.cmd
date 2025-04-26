@@ -4,12 +4,15 @@ setlocal enabledelayedexpansion
 :: -------------------------------
 :: Admin Check: Must run as Administrator
 :: -------------------------------
-net session >nul 2>&1
-if %errorlevel% neq 0 (
-    call :log error "This script must be run as Administrator."
-    pause
+NET FILE 1>NUL 2>&1 || (
+    call :log error "ADMINISTRATOR PRIVILEGES REQUIRED"
+    timeout /t 3 /nobreak >nul
     exit /b 1
 )
+
+set "REG_ROOT=HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies"
+set "REG_UI=%REG_ROOT%\System"
+set "REG_VIS=%REG_ROOT%\Explorer"
 
 :: -------------------------------
 :: Main Menu
@@ -33,76 +36,69 @@ call :log error "Invalid option. Please enter 1, 2, or 0."
 pause
 goto menu
 
-:: -------------------------------
-:: Disable Routine (Only UI Restrictions)
-:: -------------------------------
+::# -------------------------------
+::# Disable Module (UI Restrictions Only)
+::# -------------------------------
 :disable
-echo.
-call :log progress "Disabling Microsoft Account Sign-In UI..."
+call :log action "Applying UI restrictions..."
 
-:: Apply registry changes with error checking
-call :apply_registry_changes 3 0 0 0 || exit /b 1
+:: Core security policy update
+reg add "%REG_UI%" /v NoConnectedUser /t REG_DWORD /d 3 /f >nul || goto :reg_failure
+reg add "%REG_UI%" /v BlockMicrosoftAccount /t REG_DWORD /d 1 /f >nul || goto :reg_failure
 
-:: Hide Settings Page by adding a marker value
-reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v SettingsPageVisibility /t REG_SZ /d "hide:signinoptions" /f >nul || (
-    call :log error "Failed to hide settings page."
-    exit /b 1
+:: Settings page customization
+reg add "%REG_VIS%" /v SettingsPageVisibility /t REG_SZ /d "hide:signinoptions" /f >nul && (
+    call :log success " - Settings menu item hidden"
+) || (
+    call :log warning " - Existing settings restriction not modified"
 )
 
-:: Refresh system policies
-call :refresh_policies
-
-echo.
-call :log success "MICROSOFT ACCOUNT SIGN-IN UI IS NOW HIDDEN"
-call :log info "Note: Browser services and Store downloads remain functional"
+call :finalize_changes
+call :log success "SIGN-IN UI DISABLED - Store/Outlook services remain active"
 pause
-exit /b
-
-:: -------------------------------
-:: Enable Routine
-:: -------------------------------
-:enable
-echo.
-call :log progress "Enabling Microsoft Account Sign-In..."
-
-:: Revert registry changes with error checking
-call :apply_registry_changes 0 0 1 1 || exit /b 1
-
-:: Remove the settings page hiding marker
-reg delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" /v SettingsPageVisibility /f >nul 2>&1
-
-:: Refresh system policies
-call :refresh_policies
-
-echo.
-call :log success "MICROSOFT ACCOUNT SIGN-IN OPTIONS RESTORED"
-pause
-exit /b
-
-:: -------------------------------
-:: Subroutine: Apply Registry Changes
-:: Parameters: %1 = NoConnectedUser, %2 = BlockMicrosoftAccount, %3 = AllowYourAccount, %4 = AllowMicrosoftAccountConnection
-:: -------------------------------
-:apply_registry_changes
-rem Change System policies with error handling
-reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v NoConnectedUser /t REG_DWORD /d %1 /f >nul || goto :reg_error
-reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" /v BlockMicrosoftAccount /t REG_DWORD /d %2 /f >nul || goto :reg_error
-reg add "HKLM\SOFTWARE\Microsoft\PolicyManager\default\Settings\AllowYourAccount" /v value /t REG_DWORD /d %3 /f >nul 2>&1 || goto :reg_error
-reg add "HKLM\SOFTWARE\Microsoft\PolicyManager\default\Settings\AllowMicrosoftAccountConnection" /v value /t REG_DWORD /d %4 /f >nul 2>&1 || goto :reg_error
 exit /b 0
 
-:reg_error
-call :log error "Failed to apply registry changes. This system may not support all policies."
-exit /b 1
+::# -------------------------------
+::# Enable Module
+::# -------------------------------
+:enable
+call :log action "Restoring default access..."
 
-:: -------------------------------
-:: Subroutine: Refresh Policies
-:: -------------------------------
-:refresh_policies
-call :log info "Refreshing system policies..."
-gpupdate /force >nul
-taskkill /f /im explorer.exe >nul && start explorer.exe
-exit /b %errorlevel%
+:: Policy reversion with legacy value cleanup
+reg add "%REG_UI%" /v NoConnectedUser /t REG_DWORD /d 0 /f >nul
+reg add "%REG_UI%" /v BlockMicrosoftAccount /t REG_DWORD /d 0 /f >nul
+reg delete "%REG_VIS%" /v SettingsPageVisibility /f >nul 2>&1 && (
+    call :log success " - Settings visibility restored"
+)
+
+call :finalize_changes
+call :log success "SIGN-IN OPTIONS ENABLED SYSTEM WIDE"
+pause
+exit /b 0
+
+::# -------------------------------
+::# System Finalization Sequence
+::# -------------------------------
+:finalize_changes
+call :log info "Finalizing system changes..."
+gpupdate /target:computer /force >nul
+timeout /t 1 /nobreak >nul
+
+taskkill /f /im explorer.exe >nul && (
+    start explorer.exe
+    call :log success " - Shell refreshed successfully"
+)
+exit /b 0
+
+::# -------------------------------
+::# Registry Failure Handler
+::# -------------------------------
+:reg_failure
+call :log error "CRITICAL: Registry modification failed"
+call :log info "Possible causes:"
+call :log info " - Group Policy override active"
+call :log info " - System file protection interference"
+exit /b 1
 
 :: -------------------------------
 :: Subroutine: Log Messages with Colors

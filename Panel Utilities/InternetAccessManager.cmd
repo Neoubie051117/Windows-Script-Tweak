@@ -7,31 +7,26 @@ setlocal enabledelayedexpansion
 :: E - YELLOW (Message Updates)
 
 :: Check if the script is run as Administrator
-
 net session >nul 2>&1
 if %errorlevel% neq 0 (
-    color C
+    call :log error "<> Windows Tool Script must be run as administrator."
     echo.
-    echo ^<^> Windows Tool Script must be run as administrator.
+    call :log error "<> Run the script as administrator to:" 
+    call :log error "   - Access restricted parts of your system"
+    call :log error "   - Modify system settings"
+    call :log error "   - Access protected files"
+    call :log error "   - Make changes that affect other users on the computer"
     echo.
-    echo ^<^> Run the script as administrator to: 
-    echo. 
-    echo            - Access restricted parts of your system
-    echo            - Modify system settings
-    echo            - Access protected files
-    echo            - Make changes that affect other users on the computer
+    call :log error "<> To run a program as an administrator on Windows:"
+    call :log error "   - Locate the program you want to run"
+    call :log error "   - Right-click the program's shortcut or executable file"
+    call :log error "   - Select Properties"
+    call :log error "   - In the Compatibility tab, check the 'Run this program as an administrator' option"
+    call :log error "   - Click Apply, then OK"
+    call :log error "   - Depending on your Windows Account Settings, you may receive a warning message"
+    call :log error "   - Click Continue to confirm the changes"
     echo.
-    echo ^<^> To run a program as an administrator on Windows:
-    echo. 
-    echo            - Locate the program you want to run
-    echo            - Right-click the program's shortcut or executable file
-    echo            - Select Properties
-    echo            - In the Compatibility tab, check the "Run this program as an administrator" option
-    echo            - Click Apply, then OK
-    echo            - Depending on your Windows Account Settings, you may receive a warning message
-    echo            - Click Continue to confirm the changes
-    echo.
-    echo ^<^> Warning: This program will close in after 30 seconds.
+    call :log warning "<> Warning: This program will close in after 30 seconds."
     timeout /t 30 >nul && exit /b
 )
 
@@ -48,10 +43,10 @@ echo.
 echo ^<^> Internet Access Manager
 echo.
 echo.
-echo [1] Block Internet Access
-echo [2] Unblock Internet Access
-echo.
-echo [0] Cancel
+call :log info " [1] Block Internet Access      "
+call :log info " [2] Unblock Internet Access"
+call :log info ""
+call :log warning " [0] Cancel"
 echo.
 set /p choice=">> " 
 
@@ -263,3 +258,27 @@ if "%valid%"=="false" (
 )
 endlocal
 goto :eof
+
+:log
+setlocal EnableDelayedExpansion
+set "type=%~1"
+set "msg=%~2"
+
+set "ESC=["  :: You can paste real ESC here or use a helper if needed
+
+:: Bright colors
+set "color="
+
+if /i "%type%"=="error" set "color=91"          :: Bright Red
+if /i "%type%"=="warning" set "color=93"        :: Bright Yellow
+if /i "%type%"=="info" set "color=96"           :: Bright Cyan
+if /i "%type%"=="progress" set "color=90"       :: Gray (Bright Black)
+if /i "%type%"=="critical" set "color=97;41"    :: Bright White on Red background
+if /i "%type%"=="" set "color=92"               :: Bright Green (Success default)
+
+:: Print using ANSI colors
+<nul set /p="!ESC!!color!m%msg%!ESC!0m"
+echo.
+
+endlocal
+exit /b 0

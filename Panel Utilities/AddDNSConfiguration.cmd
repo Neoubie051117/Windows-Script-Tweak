@@ -146,27 +146,25 @@ exit /b 0
 
 :: Updated logging subsystem (no prefixes)
 :log
-setlocal
+setlocal EnableDelayedExpansion
 set "type=%~1"
 set "msg=%~2"
+
+set "ESC=["  :: You can paste real ESC here or use a helper if needed
+
+:: Bright colors
 set "color="
 
-:: Configure color only (no prefixes)
-if "%type%"=="error" (
-    set "color=Red"
-) else if "%type%"=="warning" (
-    set "color=Yellow"
-) else if "%type%"=="info" (
-    set "color=Cyan"
-) else if "%type%"=="progress" (
-    set "color=Gray"
-) else if "%type%"=="critical" (
-    set "color=White -b Red"
-) else (
-    set "color=Green"  :: Success messages
-)
+if /i "%type%"=="error" set "color=91"          :: Bright Red
+if /i "%type%"=="warning" set "color=93"        :: Bright Yellow
+if /i "%type%"=="info" set "color=96"           :: Bright Cyan
+if /i "%type%"=="progress" set "color=90"       :: Gray (Bright Black)
+if /i "%type%"=="critical" set "color=97;41"    :: Bright White on Red background
+if /i "%type%"=="" set "color=92"               :: Bright Green (Success default)
 
-:: PowerShell color output
-powershell -Command "[Console]::ForegroundColor='%color%'; Write-Host '%msg%'; [Console]::ResetColor()"
+:: Print using ANSI colors
+<nul set /p="!ESC!!color!m%msg%!ESC!0m"
+echo.
+
 endlocal
 exit /b 0

@@ -1,38 +1,23 @@
 @echo off
 setlocal enabledelayedexpansion
-:: Set text colors for better aesthetics
-:: Colors: 
-:: A - GREEN (Text UI Messages / Success)
-:: C - RED (Errors / Warnings)
-:: E - YELLOW (Message Updates)
 
-:: Check if the script is run as Administrator
-
+::-------------------- CHECK FOR ADMIN PRIVILEGES --------------------
 net session >nul 2>&1
-if %errorlevel% neq 0 (
-    color C
+if errorlevel 1 (
+    call :log warning "<> Windows Tool Script must be run as administrator."
     echo.
-    echo ^<^> Windows Tool Script must be run as administrator.
+    call :log warning "<> Run the script as administrator to:"
+    call :log error "   - Access restricted parts of your system"
+    call :log error "   - Modify system settings"
+    call :log error "   - Access protected files"
+    call :log error "   - Make changes that affect other users on the computer"
     echo.
-    echo ^<^> Run the script as administrator to: 
-    echo. 
-    echo            - Access restricted parts of your system
-    echo            - Modify system settings
-    echo            - Access protected files
-    echo            - Make changes that affect other users on the computer
+    call :log warning "<> To run as admin:"
+    call :log error "   - Right-click > Properties > Compatibility > 'Run as administrator'"
     echo.
-    echo ^<^> To run a program as an administrator on Windows:
-    echo. 
-    echo            - Locate the program you want to run
-    echo            - Right-click the program's shortcut or executable file
-    echo            - Select Properties
-    echo            - In the Compatibility tab, check the "Run this program as an administrator" option
-    echo            - Click Apply, then OK
-    echo            - Depending on your Windows Account Settings, you may receive a warning message
-    echo            - Click Continue to confirm the changes
-    echo.
-    echo ^<^> Warning: This program will close in after 30 seconds.
-    timeout /t 30 >nul && exit /b
+    call :log warning "<> This program will close in 30 seconds."
+    timeout /t 30 >nul
+    exit /b
 )
 
 ::Hyper V Installer function
@@ -51,3 +36,24 @@ del hyper-v.txt
 Dism /online /enable-feature /featurename:Microsoft-Hyper-V -All /LimitAccess /ALL
 
 pause
+
+::-------------------- LOG FUNCTION WITH ANSI COLOR OUTPUT --------------------
+:log
+setlocal enabledelayedexpansion
+set "type=%~1"
+set "msg=%~2"
+
+set "ESC=["
+
+set "color="
+if /i "%type%"=="error" set "color=91"          :: Bright Red
+if /i "%type%"=="warning" set "color=93"        :: Bright Yellow
+if /i "%type%"=="info" set "color=96"           :: Bright Cyan
+if /i "%type%"=="progress" set "color=92"       :: Bright Green
+if /i "%type%"=="critical" set "color=91;107"   :: Red text on White background
+if /i "%type%"=="" set "color=97"               :: Bright Green (Success default)
+
+<nul set /p="!ESC!!color!m%msg%!ESC!0m"
+echo.
+endlocal
+goto :eof

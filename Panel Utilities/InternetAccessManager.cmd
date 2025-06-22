@@ -1,35 +1,24 @@
 @echo off
 setlocal enabledelayedexpansion
-:: Set text colors for better aesthetics
-:: Colors: 
-:: A - GREEN (Text UI Messages / Success)
-:: C - RED (Errors / Warnings)
-:: E - YELLOW (Message Updates)
 
-:: Check if the script is run as Administrator
+::-------------------- CHECK FOR ADMIN PRIVILEGES --------------------
 net session >nul 2>&1
-if %errorlevel% neq 0 (
-    call :log error "<> Windows Tool Script must be run as administrator."
+if errorlevel 1 (
+    call :log warning "<> Windows Tool Script must be run as administrator."
     echo.
-    call :log error "<> Run the script as administrator to:" 
+    call :log warning "<> Run the script as administrator to:"
     call :log error "   - Access restricted parts of your system"
     call :log error "   - Modify system settings"
     call :log error "   - Access protected files"
     call :log error "   - Make changes that affect other users on the computer"
     echo.
-    call :log error "<> To run a program as an administrator on Windows:"
-    call :log error "   - Locate the program you want to run"
-    call :log error "   - Right-click the program's shortcut or executable file"
-    call :log error "   - Select Properties"
-    call :log error "   - In the Compatibility tab, check the 'Run this program as an administrator' option"
-    call :log error "   - Click Apply, then OK"
-    call :log error "   - Depending on your Windows Account Settings, you may receive a warning message"
-    call :log error "   - Click Continue to confirm the changes"
+    call :log warning "<> To run as admin:"
+    call :log error "   - Right-click > Properties > Compatibility > 'Run as administrator'"
     echo.
-    call :log warning "<> Warning: This program will close in after 30 seconds."
-    timeout /t 30 >nul && exit /b
+    call :log warning "<> This program will close in 30 seconds."
+    timeout /t 30 >nul
+    exit /b
 )
-
 
 :: Configuration
 set "WINGET_IGNORE_LIST=%SystemDrive%\winget_ignore.txt"
@@ -259,26 +248,23 @@ if "%valid%"=="false" (
 endlocal
 goto :eof
 
+::-------------------- LOG FUNCTION WITH ANSI COLOR OUTPUT --------------------
 :log
-setlocal EnableDelayedExpansion
+setlocal enabledelayedexpansion
 set "type=%~1"
 set "msg=%~2"
 
-set "ESC=["  :: You can paste real ESC here or use a helper if needed
+set "ESC=["
 
-:: Bright colors
 set "color="
-
 if /i "%type%"=="error" set "color=91"          :: Bright Red
 if /i "%type%"=="warning" set "color=93"        :: Bright Yellow
 if /i "%type%"=="info" set "color=96"           :: Bright Cyan
-if /i "%type%"=="progress" set "color=90"       :: Gray (Bright Black)
-if /i "%type%"=="critical" set "color=97;41"    :: Bright White on Red background
-if /i "%type%"=="" set "color=92"               :: Bright Green (Success default)
+if /i "%type%"=="progress" set "color=92"       :: Bright Green
+if /i "%type%"=="critical" set "color=91;107"   :: Red text on White background
+if /i "%type%"=="" set "color=97"               :: Bright Green (Success default)
 
-:: Print using ANSI colors
 <nul set /p="!ESC!!color!m%msg%!ESC!0m"
 echo.
-
 endlocal
-exit /b 0
+goto :eof

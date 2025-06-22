@@ -1,13 +1,23 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: ----------------------------------
-:: Check for Administrator Privileges
-:: ----------------------------------
-NET FILE 1>NUL 2>&1 || (
-    call :log error "ADMINISTRATOR PRIVILEGES REQUIRED"
-    timeout /t 3 /nobreak >nul
-    exit /b 1
+::-------------------- CHECK FOR ADMIN PRIVILEGES --------------------
+net session >nul 2>&1
+if errorlevel 1 (
+    call :log warning "<> Windows Tool Script must be run as administrator."
+    echo.
+    call :log warning "<> Run the script as administrator to:"
+    call :log error "   - Access restricted parts of your system"
+    call :log error "   - Modify system settings"
+    call :log error "   - Access protected files"
+    call :log error "   - Make changes that affect other users on the computer"
+    echo.
+    call :log warning "<> To run as admin:"
+    call :log error "   - Right-click > Properties > Compatibility > 'Run as administrator'"
+    echo.
+    call :log warning "<> This program will close in 30 seconds."
+    timeout /t 30 >nul
+    exit /b
 )
 
 :: Registry Path Shortcuts
@@ -146,27 +156,23 @@ if errorlevel 1 (
 exit /b 0
 
 
-:: Message Logging With Color Output
+::-------------------- LOG FUNCTION WITH ANSI COLOR OUTPUT --------------------
 :log
-setlocal EnableDelayedExpansion
+setlocal enabledelayedexpansion
 set "type=%~1"
 set "msg=%~2"
 
-set "ESC=["  :: You can paste real ESC here or use a helper if needed
+set "ESC=["
 
-:: Bright colors
 set "color="
-
 if /i "%type%"=="error" set "color=91"          :: Bright Red
 if /i "%type%"=="warning" set "color=93"        :: Bright Yellow
 if /i "%type%"=="info" set "color=96"           :: Bright Cyan
-if /i "%type%"=="progress" set "color=92"       :: Green
-if /i "%type%"=="critical" set "color=97;41"    :: Bright White on Red background
-if /i "%type%"=="" set "color=92"               :: Bright Green (Success default)
+if /i "%type%"=="progress" set "color=92"       :: Bright Green
+if /i "%type%"=="critical" set "color=91;107"   :: Red text on White background
+if /i "%type%"=="" set "color=97"               :: Bright Green (Success default)
 
-:: Print using ANSI colors
 <nul set /p="!ESC!!color!m%msg%!ESC!0m"
 echo.
-
 endlocal
-exit /b 0
+goto :eof

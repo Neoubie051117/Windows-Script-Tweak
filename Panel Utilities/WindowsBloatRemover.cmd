@@ -1,6 +1,25 @@
 @echo off
-setlocal EnableExtensions EnableDelayedExpansion
-cls
+setlocal enabledelayedexpansion
+
+::-------------------- CHECK FOR ADMIN PRIVILEGES --------------------
+net session >nul 2>&1
+if errorlevel 1 (
+    call :log warning "<> Windows Tool Script must be run as administrator."
+    echo.
+    call :log warning "<> Run the script as administrator to:"
+    call :log error "   - Access restricted parts of your system"
+    call :log error "   - Modify system settings"
+    call :log error "   - Access protected files"
+    call :log error "   - Make changes that affect other users on the computer"
+    echo.
+    call :log warning "<> To run as admin:"
+    call :log error "   - Right-click > Properties > Compatibility > 'Run as administrator'"
+    echo.
+    call :log warning "<> This program will close in 30 seconds."
+    timeout /t 30 >nul
+    exit /b
+)
+
 :: ------ Configuration Section ------
 :: Delimiters changed to pipes for reliable path parsing
 set "SCRIPT_NAME=Windows Optimization Suite"
@@ -629,30 +648,26 @@ if exist "%BACKUP_DIR%\*.html" (
 echo --------------------------------------------------
 exit /b 0
 
-::Color Management
+::-------------------- LOG FUNCTION WITH ANSI COLOR OUTPUT --------------------
 :log
-setlocal
+setlocal enabledelayedexpansion
 set "type=%~1"
 set "msg=%~2"
-set "color=7"
 
-for /f "tokens=*" %%T in ('powershell -Command "Get-Date -Format 'HH:mm:ss'"') do set "CURRENT_TIME=%%T"
+set "ESC=["
 
+set "color="
+if /i "%type%"=="error" set "color=91"          :: Bright Red
+if /i "%type%"=="warning" set "color=93"        :: Bright Yellow
+if /i "%type%"=="info" set "color=96"           :: Bright Cyan
+if /i "%type%"=="progress" set "color=92"       :: Bright Green
+if /i "%type%"=="critical" set "color=91;107"   :: Red text on White background
+if /i "%type%"=="" set "color=97"               :: Bright Green (Success default)
 
-if /i "%type%"=="error"   set "color=12"
-if /i "%type%"=="success" set "color=10"
-if /i "%type%"=="info"    set "color=11"
-if /i "%type%"=="phase"   set "color=14"
-if /i "%type%"=="warn"    set "color=13"
-if /i "%type%"=="neutral" set "color=07"
-
-
-powershell -Command "[Console]::ForegroundColor=%color%; Write-Host '[%CURRENT_TIME%] %msg%'" 2>nul || (
-    echo [%CURRENT_TIME%] %msg%
-)
-
+<nul set /p="!ESC!!color!m%msg%!ESC!0m"
+echo.
 endlocal
-exit /b 0
+goto :eof
 
 :: Restores (imports) the existing registry backup files if present.  
 :: This process will overwrite the current registry settings with the saved backup,  

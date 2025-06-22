@@ -3,26 +3,21 @@ setlocal enabledelayedexpansion
 
 ::-------------------- CHECK FOR ADMIN PRIVILEGES --------------------
 net session >nul 2>&1
-if %errorlevel% neq 0 (
-    call :log error "<> Windows Tool Script must be run as administrator."
-    call :log error ""
-    call :log error "<> Run the script as administrator to:" 
+if errorlevel 1 (
+    call :log warning "<> Windows Tool Script must be run as administrator."
+    echo.
+    call :log warning "<> Run the script as administrator to:"
     call :log error "   - Access restricted parts of your system"
     call :log error "   - Modify system settings"
     call :log error "   - Access protected files"
     call :log error "   - Make changes that affect other users on the computer"
-    call :log error ""
-    call :log error "<> To run a program as an administrator on Windows:"
-    call :log error "   - Locate the program you want to run"
-    call :log error "   - Right-click the program's shortcut or executable file"
-    call :log error "   - Select Properties"
-    call :log error "   - In the Compatibility tab, check 'Run this program as an administrator'"
-    call :log error "   - Click Apply, then OK"
-    call :log error "   - You may receive a warning message depending on your Windows settings"
-    call :log error "   - Click Continue to confirm"
-    call :log error ""
-    call :log warning "<> Warning: This program will close after 30 seconds."
-    timeout /t 30 >nul && exit /b
+    echo.
+    call :log warning "<> To run as admin:"
+    call :log error "   - Right-click > Properties > Compatibility > 'Run as administrator'"
+    echo.
+    call :log warning "<> This program will close in 30 seconds."
+    timeout /t 30 >nul
+    exit /b
 )
 
 ::-------------------- DNS CONFIGURATION MENU --------------------
@@ -44,7 +39,8 @@ echo.
 echo.
 set /p "choice=>> "
 
-if "%choice%"=="1" call :ConfigureDNS "Google 8.8.8.8 8.8.4.4 2001:4860:4860::8888 2001:4860:4860::8844"
+
+if "%choice%"=="1" call :ConfigureDNS "Google" "8.8.8.8" "8.8.4.4" "2001:4860:4860::8888" "2001:4860:4860::8844"
 if "%choice%"=="2" call :ConfigureDNS "Adguard" "94.140.14.14" "94.140.15.15" "2a10:50c0::ad1:ff" "2a10:50c0::ad2:ff"
 if "%choice%"=="3" call :ConfigureDNS "Cloudflare" "1.1.1.1" "1.0.0.1" "2606:4700:4700::1111" "2606:4700:4700::1001"
 if "%choice%"=="4" call :ConfigureDNS "OpenDNS" "208.67.220.220" "208.67.222.222" "2620:119:35::35" "2620:119:53::53"
@@ -116,7 +112,7 @@ for /f "tokens=1,2,3,*" %%A in ('netsh interface show interface ^| findstr /i "C
 
     for /f "tokens=2 delims=:" %%G in ('netsh interface ipv4 show config name="%%D" ^| findstr /i "Default Gateway"') do (
         if not "%%G"=="None" (
-            set "interface_name=%%D"
+            set "interface_name=%%~D"
             goto :found
         )
     )
@@ -135,7 +131,7 @@ if not defined interface_name (
 
 :: Step 3: Last resort — use WMIC for any enabled interface
 if not defined interface_name (
-    for /f "tokens=2 delims==" %%I in ('wmic nic where "NetEnabled=True" get NetConnectionID /value 2^>nul') do (
+    for /f "delims=" %%I in ('powershell -Command "Get-NetAdapter | Where-Object { $_.Status -eq 'Up' } | Select -ExpandProperty Name"') do (
         set "interface_name=%%I"
         goto :found
     )
@@ -169,7 +165,7 @@ for /f "tokens=1,2,3,*" %%A in ('netsh interface show interface ^| findstr /i "C
 
     :: Check if it has an IPv4 address
     for /f "tokens=2 delims=:" %%G in ('netsh interface ipv4 show address name="%%D" ^| findstr /i "IP Address"') do (
-        call :log progress "Applying DNS to: %%D"
+        call :log progress "Applying DNS to: \"%%D\""
 
         :: Clean existing IPv4 DNS
         netsh interface ip delete dns name="%%D" all >nul 2>&1
@@ -217,7 +213,6 @@ set "msg=%~2"
 set "ESC=["
 
 set "color="
-if /i "%type%"=="" set "color=92"
 if /i "%type%"=="error" set "color=91"          :: Bright Red
 if /i "%type%"=="warning" set "color=93"        :: Bright Yellow
 if /i "%type%"=="info" set "color=96"           :: Bright Cyan

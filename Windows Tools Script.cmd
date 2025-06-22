@@ -3,26 +3,21 @@ setlocal enabledelayedexpansion
 
 ::-------------------- CHECK FOR ADMIN PRIVILEGES --------------------
 net session >nul 2>&1
-if %errorlevel% neq 0 (
+if errorlevel 1 (
     call :log warning "<> Windows Tool Script must be run as administrator."
     echo.
-    call :log warning "<> Run the script as administrator to:" 
+    call :log warning "<> Run the script as administrator to:"
     call :log error "   - Access restricted parts of your system"
     call :log error "   - Modify system settings"
     call :log error "   - Access protected files"
     call :log error "   - Make changes that affect other users on the computer"
     echo.
-    call :log warning "<> To run a program as an administrator on Windows:"
-    call :log error "   - Locate the program you want to run"
-    call :log error "   - Right-click the program's shortcut or executable file"
-    call :log error "   - Select Properties"
-    call :log error "   - In the Compatibility tab, check the 'Run this program as an administrator' option"
-    call :log error "   - Click Apply, then OK"
-    call :log error "   - Depending on your Windows Account Settings, you may receive a warning message"
-    call :log error "   - Click Continue to confirm the changes"
+    call :log warning "<> To run as admin:"
+    call :log error "   - Right-click > Properties > Compatibility > 'Run as administrator'"
     echo.
-    call :log warning "<> Warning: This program will close in 30 seconds."
-    timeout /t 30 >nul && exit /b
+    call :log warning "<> This program will close in 30 seconds."
+    timeout /t 30 >nul
+    exit /b
 )
 
 ::-------------------- MAIN MENU: SYSTEM INFO AND OPTIONS --------------------
@@ -66,41 +61,56 @@ set /p menuOptions=">> "
 
 ::-------------------- EXECUTE SELECTED OPTION --------------------
 if "%menuOptions%"=="0" exit
-if "%menuOptions%"=="1" call :RunTool "Malicious Software Removal Tool" mrt.exe
-if "%menuOptions%"=="2" call :RunTool "System Properties" sysdm.cpl
-if "%menuOptions%"=="3" call :RunTool "System Information" msinfo32.exe
-if "%menuOptions%"=="4" call :RunTool "System Configuration" msconfig.exe
-if "%menuOptions%"=="5" call :RunTool "Disk Cleanup Utility" cleanmgr.exe
-if "%menuOptions%"=="6" call :RunTool "Disk Defragmenter" dfrgui.exe & del /f /s /q "%temp%\*" 2>nul && del /f /s /q "C:\Windows\Prefetch\*" 2>nul && del /f /s /q "C:\Windows\Temp\*" 2>nul
-if "%menuOptions%"=="7" call "%~dp0Panel Utilities\RunWinget.cmd"
-if "%menuOptions%"=="8" call "%~dp0Panel Utilities\RunSFC.cmd"
-if "%menuOptions%"=="9" call "%~dp0Panel Utilities\AddDNSConfiguration.cmd"
+
+if "%menuOptions%"=="1"  call :RunTool "Malicious Software Removal Tool" "mrt.exe"
+if "%menuOptions%"=="2"  call :RunTool "System Properties" "sysdm.cpl"
+if "%menuOptions%"=="3"  call :RunTool "System Information" "msinfo32.exe"
+if "%menuOptions%"=="4"  call :RunTool "System Configuration" "msconfig.exe"
+if "%menuOptions%"=="5"  call :RunTool "Disk Cleanup Utility" "cleanmgr.exe"
+
+if "%menuOptions%"=="6" (
+    call :RunTool "Disk Defragmenter" "dfrgui.exe"
+    echo Cleaning temporary files...
+    del /f /s /q "%temp%\*" >nul 2>&1
+    del /f /s /q "C:\Windows\Prefetch\*" >nul 2>&1
+    del /f /s /q "C:\Windows\Temp\*" >nul 2>&1
+)
+
+if "%menuOptions%"=="7"  call "%~dp0Panel Utilities\RunWinget.cmd"
+if "%menuOptions%"=="8"  call "%~dp0Panel Utilities\RunSFC.cmd"
+if "%menuOptions%"=="9"  call "%~dp0Panel Utilities\AddDNSConfiguration.cmd"
 if "%menuOptions%"=="10" call "%~dp0Panel Utilities\WindowsRedistributableInstaller.cmd"
 if "%menuOptions%"=="11" call "%~dp0Panel Utilities\HyperVInstaller.cmd"
 if "%menuOptions%"=="12" call "%~dp0Panel Utilities\SandboxInstaller.cmd"
 if "%menuOptions%"=="13" call "%~dp0Panel Utilities\InternetAccessManager.cmd"
 if "%menuOptions%"=="14" call "%~dp0Panel Utilities\WindowsBloatRemover.cmd"
 if "%menuOptions%"=="15" call "%~dp0Panel Utilities\MicrosoftSignInDisabler.cmd"
+
 goto :WindowsToolScriptMenu
 
 ::-------------------- TOOL RUNNER FUNCTION --------------------
 :RunTool
+setlocal enabledelayedexpansion
+set "toolName=%~1"
+set "toolCommand=%~2"
 cls
-call :log progress "Running %1..."
-%2
-call :log info "Press any key to return to the menu..."
-pause >nul
+call :log progress "Running !toolName!..."
+start "" "!toolCommand!"
+timeout /t 3 >nul
+call :log info "."
 goto :WindowsToolScriptMenu
+
+
 
 ::-------------------- LOG FUNCTION WITH ANSI COLOR OUTPUT --------------------
 :log
+setlocal enabledelayedexpansion
 set "type=%~1"
 set "msg=%~2"
 
 set "ESC=["
 
 set "color="
-if /i "%type%"=="" set "color=92"
 if /i "%type%"=="error" set "color=91"          :: Bright Red
 if /i "%type%"=="warning" set "color=93"        :: Bright Yellow
 if /i "%type%"=="info" set "color=96"           :: Bright Cyan
@@ -110,7 +120,6 @@ if /i "%type%"=="" set "color=97"               :: Bright Green (Success default
 
 <nul set /p="!ESC!!color!m%msg%!ESC!0m"
 echo.
-
 endlocal
-exit /b 0
+goto :eof
 

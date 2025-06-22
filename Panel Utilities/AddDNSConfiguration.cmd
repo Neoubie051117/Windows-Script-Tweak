@@ -48,7 +48,7 @@ call :log info " [4] Open DNS        (208.67.220.220 / 208.67.222.222)     (2620
 echo.
 call :log info " [5] Auto (Randomly selects a DNS server)"
 echo.
-call :log warning " [0] Back to Main Menu
+call :log warning " [0] Back to Main Menu"
 echo.
 echo.
 set /p "choice=>> "

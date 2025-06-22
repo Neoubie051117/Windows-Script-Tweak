@@ -450,55 +450,90 @@ if %SECURITY_FAIL% gtr 0 (
 exit /b 0
 ::End of Phase 3 Functions Processes
 
-::Start of Phase 4 Functions Processes
 :: ===== Phase 4: System Validation =====
 :Validate_System
 echo.
 echo  Running essential system validation...
 echo.
-
 goto :Essential_Validation
 
-:: ================= Essential Validation =================
+:: ===================== Essential Validation =====================
 :Essential_Validation
 call :log info "Running essential system validation..."
+
+setlocal EnableDelayedExpansion
 set "ESSENTIAL_ERRORS=0"
 
-:: Check if Windows Update service is running
-sc query wuauserv | findstr /i "RUNNING" >nul
-if %errorlevel% neq 0 (
-    call :log warn "Windows Update service is not running. Attempting to start..."
-    net start wuauserv >nul 2>&1
-    if %errorlevel% neq 0 (
-        call :log error "Failed to start Windows Update service."
-        set /a ESSENTIAL_ERRORS+=1
+:: ----------- Validate Windows Update Service (wuauserv) -----------
+call :log info "Checking Windows Update service status..."
+
+sc query wuauserv >nul 2>&1
+if !errorlevel! neq 0 (
+    call :log error "Windows Update service does not exist on this system."
+    set /a ESSENTIAL_ERRORS+=1
+) else (
+    
+ set "WU_STATE=")
+
+for /f "tokens=3" %%A in ('sc query wuauserv ^| findstr /i "STATE" 2^>nul') do (
+    set "WU_STATE=%%A"
+)
+
+if defined WU_STATE (
+    if "!WU_STATE!"=="RUNNING" (
+        call :log success "Windows Update service is already running."
     ) else (
-        call :log success "Windows Update service started successfully."
+        call :log warn "Windows Update service is not running. Attempting repair..."
+
+        sc qc wuauserv | findstr /i "DISABLED" >nul
+        if !errorlevel! equ 0 (
+            sc config wuauserv start= demand >nul 2>&1
+            if !errorlevel! equ 0 (
+                call :log info "Startup type set to Manual."
+            ) else (
+                call :log error "Failed to set Windows Update service startup type."
+                set /a ESSENTIAL_ERRORS+=1
+            )
+        )
+
+        net start wuauserv >nul 2>&1
+        if !errorlevel! equ 0 (
+            call :log error "Failed to start Windows Update service."
+            set /a ESSENTIAL_ERRORS+=1
+        ) else (
+            call :log success "Windows Update service started successfully."
+        )
     )
 )
 
-:: Verify critical registry policies exist
-reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies" >nul 2>&1 || (
-    call :log warn "Critical registry policies missing. Repairing..."
+:: ----------- Validate Critical Registry Policies -----------
+call :log info "Checking critical registry policy keys..."
+
+reg query "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies" >nul 2>&1
+if !errorlevel! neq 0 (
+    call :log warn "Critical registry policies missing. Attempting to restore..."
     reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies" /f >nul 2>&1
-    if %errorlevel% neq 0 (
+    if !errorlevel! neq 0 (
         call :log error "Failed to restore registry policies."
         set /a ESSENTIAL_ERRORS+=1
     ) else (
-        call :log success "Registry policies restored."
+        call :log success "Registry policies restored successfully."
     )
+) else (
+    call :log success "Critical registry policies verified."
 )
 
-:: Summary of Essential Validation
-if %ESSENTIAL_ERRORS% gtr 0 (
-    call :log warn "Essential validation found %ESSENTIAL_ERRORS% issues"
+:: ----------- Final Summary Output -----------
+if !ESSENTIAL_ERRORS! gtr 0 (
+    call :log warn "Essential validation found !ESSENTIAL_ERRORS! issue(s)."
 ) else (
     call :log success "Essential validation complete - No critical issues detected."
 )
-exit /b %ESSENTIAL_ERRORS%
 
-::End of Phase 4 Functions Processes
-
+:: Capture value and end scope cleanly
+set "errorCount=!ESSENTIAL_ERRORS!"
+endlocal
+exit /b %errorCount%
 
 
 :report

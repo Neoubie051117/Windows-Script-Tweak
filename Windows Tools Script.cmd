@@ -1,23 +1,18 @@
 @echo off
 setlocal enabledelayedexpansion
-:: Set text colors for better aesthetics
-:: Colors: 
-:: A - GREEN (Text UI Messages / Success)
-:: C - RED (Errors / Warnings)
-:: E - YELLOW (Message Updates)
 
-:: Check if the script is run as Administrator
+::-------------------- CHECK FOR ADMIN PRIVILEGES --------------------
 net session >nul 2>&1
 if %errorlevel% neq 0 (
-    call :log error "<> Windows Tool Script must be run as administrator."
+    call :log warning "<> Windows Tool Script must be run as administrator."
     echo.
-    call :log error "<> Run the script as administrator to:" 
+    call :log warning "<> Run the script as administrator to:" 
     call :log error "   - Access restricted parts of your system"
     call :log error "   - Modify system settings"
     call :log error "   - Access protected files"
     call :log error "   - Make changes that affect other users on the computer"
     echo.
-    call :log error "<> To run a program as an administrator on Windows:"
+    call :log warning "<> To run a program as an administrator on Windows:"
     call :log error "   - Locate the program you want to run"
     call :log error "   - Right-click the program's shortcut or executable file"
     call :log error "   - Select Properties"
@@ -26,11 +21,11 @@ if %errorlevel% neq 0 (
     call :log error "   - Depending on your Windows Account Settings, you may receive a warning message"
     call :log error "   - Click Continue to confirm the changes"
     echo.
-    call :log warning "<> Warning: This program will close in after 30 seconds."
+    call :log warning "<> Warning: This program will close in 30 seconds."
     timeout /t 30 >nul && exit /b
 )
 
-:: Clear screen and provide script explanation
+::-------------------- MAIN MENU: SYSTEM INFO AND OPTIONS --------------------
 :WindowsToolScriptMenu
 cls
 call :log success "=========================================================================================================="
@@ -66,10 +61,10 @@ call :log warning "[0] Exit"
 echo.
 echo.
 
-:: Get user input
+::-------------------- HANDLE USER INPUT --------------------
 set /p menuOptions=">> "
 
-:: Handle options
+::-------------------- EXECUTE SELECTED OPTION --------------------
 if "%menuOptions%"=="0" exit
 if "%menuOptions%"=="1" call :RunTool "Malicious Software Removal Tool" mrt.exe
 if "%menuOptions%"=="2" call :RunTool "System Properties" sysdm.cpl
@@ -88,7 +83,7 @@ if "%menuOptions%"=="14" call "%~dp0Panel Utilities\WindowsBloatRemover.cmd"
 if "%menuOptions%"=="15" call "%~dp0Panel Utilities\MicrosoftSignInDisabler.cmd"
 goto :WindowsToolScriptMenu
 
-:: Run specified tool
+::-------------------- TOOL RUNNER FUNCTION --------------------
 :RunTool
 cls
 call :log progress "Running %1..."
@@ -97,24 +92,22 @@ call :log info "Press any key to return to the menu..."
 pause >nul
 goto :WindowsToolScriptMenu
 
+::-------------------- LOG FUNCTION WITH ANSI COLOR OUTPUT --------------------
 :log
-setlocal EnableDelayedExpansion
 set "type=%~1"
 set "msg=%~2"
 
-set "ESC=["  :: You can paste real ESC here or use a helper if needed
+set "ESC=["
 
-:: Bright colors
 set "color="
-
+if /i "%type%"=="" set "color=92"
 if /i "%type%"=="error" set "color=91"          :: Bright Red
 if /i "%type%"=="warning" set "color=93"        :: Bright Yellow
 if /i "%type%"=="info" set "color=96"           :: Bright Cyan
-if /i "%type%"=="progress" set "color=90"       :: Gray (Bright Black)
-if /i "%type%"=="critical" set "color=97;41"    :: Bright White on Red background
-if /i "%type%"=="" set "color=92"               :: Bright Green (Success default)
+if /i "%type%"=="progress" set "color=92"       :: Bright Green
+if /i "%type%"=="critical" set "color=91;107"   :: Red text on White background
+if /i "%type%"=="" set "color=97"               :: Bright Green (Success default)
 
-:: Print using ANSI colors
 <nul set /p="!ESC!!color!m%msg%!ESC!0m"
 echo.
 

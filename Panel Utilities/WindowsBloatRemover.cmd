@@ -153,15 +153,32 @@ ver | findstr /i "%SUPPORTED_WINVER%" >nul || (
 exit /b 0
 
 :create_backup_dir
-set "BACKUP_DIR=%ProgramData%\%BACKUP_ROOT%\%COMPUTERNAME%_%DATE:/=_%_%TIME::=_%"
-set "BACKUP_DIR=%BACKUP_DIR: =%"
-md "%BACKUP_DIR%" 2>nul || (
+setlocal EnableDelayedExpansion
+
+:: Get cleaned timestamp (remove symbols)
+for /f "tokens=1-4 delims=/:. " %%a in ("%TIME%") do (
+    set "clean_time=%%a%%b%%c"
+)
+for /f "tokens=1-3 delims=/" %%x in ("%DATE%") do (
+    set "clean_date=%%x_%%y_%%z"
+)
+
+set "BACKUP_DIR=%ProgramData%\%BACKUP_ROOT%\%COMPUTERNAME%_!clean_date!_!clean_time!"
+md "!BACKUP_DIR!" 2>nul || (
     call :log error "Backup directory creation failed"
     exit /b %ERR_BACKUP%
 )
-call :log success "Backup store: %BACKUP_DIR%"
-exit /b 0
 
+:: Export registry hives to backup folder
+reg export HKLM "!BACKUP_DIR!\HKLM.reg" /y >nul 2>&1 || (
+    call :log error "Failed to export HKLM"
+)
+reg export HKCU "!BACKUP_DIR!\HKCU.reg" /y >nul 2>&1 || (
+    call :log error "Failed to export HKCU"
+)
+
+call :log success "Backup store created at: !BACKUP_DIR!"
+endlocal & exit /b 0
 
 ::Start of Phase 1 Functions
 :Implementing_Bloat_Features
@@ -179,6 +196,7 @@ for %%K in (
     "Policies\Microsoft\Windows\Widgets"
     "Policies\Microsoft\Windows\System"
     "Policies\Microsoft\Windows\Windows Feeds"
+    "Policies\Microsoft\Windows\Windows Search"
 ) do (
     reg add "HKLM\SOFTWARE\%%~K" /f /reg:64 >nul 2>&1 || (
         call :log warn "Creating parent key: %%K"
@@ -190,8 +208,8 @@ for %%K in (
     )
 )
 
-:: New Feature: Disable Windows Widgets (Win+W)
-call :log info "Disabling Windows Widgets..."
+:: Disable Windows Widgets
+echo Disabling Windows Widgets completely...
 set "KEY_WIDGETS=HKLM\SOFTWARE\Policies\Microsoft\Windows\Widgets"
 set "VAL_WIDGETS=DisableWidgets"
 call :safe_reg_add "!KEY_WIDGETS!" "!VAL_WIDGETS!" 1 || (
@@ -199,8 +217,15 @@ call :safe_reg_add "!KEY_WIDGETS!" "!VAL_WIDGETS!" 1 || (
     call :safe_reg_add "!KEY_WIDGETS!" "!VAL_WIDGETS!" 1 || set /a REG_FAIL+=1
 )
 
-:: New Feature: Disable Windows Recall
-call :log info "Disabling Windows Recall..."
+:: Kill Widgets process if running
+taskkill /f /im Widgets.exe >nul 2>&1
+
+:: Optional: Uninstall Widgets Web Experience Pack (Win11 only)
+echo Removing Windows Web Experience Pack (Widgets Shell)...
+powershell -Command "Get-AppxPackage *WebExperience* | Remove-AppxPackage" >nul 2>&1
+
+:: Disable Windows Recall
+echo Disabling Windows Recall (Activity Feed)...
 set "KEY_RECALL=HKLM\SOFTWARE\Policies\Microsoft\Windows\System"
 set "VAL_RECALL=EnableActivityFeed"
 call :safe_reg_add "!KEY_RECALL!" "!VAL_RECALL!" 0 || (
@@ -208,8 +233,8 @@ call :safe_reg_add "!KEY_RECALL!" "!VAL_RECALL!" 0 || (
     call :safe_reg_add "!KEY_RECALL!" "!VAL_RECALL!" 0 || set /a REG_FAIL+=1
 )
 
-:: New Feature: Disable News and Weather
-call :log info "Disabling News and Weather..."
+:: Disable News and Weather
+echo Disabling News and Interests (Feeds)...
 set "KEY_FEEDS=HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds"
 set "VAL_FEEDS=EnableFeeds"
 call :safe_reg_add "!KEY_FEEDS!" "!VAL_FEEDS!" 0 || (
@@ -217,8 +242,8 @@ call :safe_reg_add "!KEY_FEEDS!" "!VAL_FEEDS!" 0 || (
     call :safe_reg_add "!KEY_FEEDS!" "!VAL_FEEDS!" 0 || set /a REG_FAIL+=1
 )
 
-:: New Feature: Add End Task to Taskbar Context Menu
-call :log info "Adding End Task to taskbar context menu..."
+:: Enable Taskbar End Task option
+echo Enabling End Task option in Taskbar right-click...
 set "KEY_ENDTASK=HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
 set "VAL_ENDTASK=TaskbarEndTask"
 call :safe_reg_add "!KEY_ENDTASK!" "!VAL_ENDTASK!" 1 || (
@@ -226,8 +251,57 @@ call :safe_reg_add "!KEY_ENDTASK!" "!VAL_ENDTASK!" 1 || (
     reg add "!KEY_ENDTASK!" /v "!VAL_ENDTASK!" /t REG_DWORD /d 1 /f >nul 2>&1 || set /a REG_FAIL+=1
 )
 
-:: Existing tracking disablement code
-:: (Keep existing Windows Copilot, Telemetry, and Web Search disablement code here)
+:: Disable Search Indexing
+echo Disabling Windows Search Indexing and Web Suggestions...
+set "KEY_INDEXING=HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search"
+set "VAL_INDEXING=DisableBackoff"
+call :safe_reg_add "!KEY_INDEXING!" "!VAL_INDEXING!" 1 || (
+    call :take_ownership "!KEY_INDEXING!"
+    call :safe_reg_add "!KEY_INDEXING!" "!VAL_INDEXING!" 1 || set /a REG_FAIL+=1
+)
+
+:: Disable Bing Web Search and Suggestions in Start Menu
+set "KEY_BING=HKCU\Software\Microsoft\Windows\CurrentVersion\Search"
+call :safe_reg_add "!KEY_BING!" "BingSearchEnabled" 0 || (
+    call :take_ownership "!KEY_BING!"
+    call :safe_reg_add "!KEY_BING!" "BingSearchEnabled" 0 || set /a REG_FAIL+=1
+)
+call :safe_reg_add "!KEY_BING!" "CortanaConsent" 0 || (
+    call :safe_reg_add "!KEY_BING!" "CortanaConsent" 0 || set /a REG_FAIL+=1
+)
+
+:: Disable Search Box Suggestions
+set "KEY_SEARCHPOL=HKCU\Software\Policies\Microsoft\Windows\Explorer"
+call :safe_reg_add "!KEY_SEARCHPOL!" "DisableSearchBoxSuggestions" 1 || (
+    call :take_ownership "!KEY_SEARCHPOL!"
+    call :safe_reg_add "!KEY_SEARCHPOL!" "DisableSearchBoxSuggestions" 1 || set /a REG_FAIL+=1
+)
+
+
+:: Optional: Also prevent indexing in Outlook (commonly tied to Windows Search policy)
+echo Preventing Outlook Indexing (Search group policy)...
+set "VAL_SEARCHDISABLE=PreventIndexingOutlook"
+call :safe_reg_add "!KEY_INDEXING!" "!VAL_SEARCHDISABLE!" 1 || (
+    call :safe_reg_add "!KEY_INDEXING!" "!VAL_SEARCHDISABLE!" 1 || set /a REG_FAIL+=1
+)
+
+:: Disable Windows Copilot
+echo Disabling Windows Copilot...
+set "KEY_COPILOT=HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Copilot"
+set "VAL_COPILOT=TurnOffWindowsCopilot"
+call :safe_reg_add "!KEY_COPILOT!" "!VAL_COPILOT!" 1 || (
+    call :take_ownership "!KEY_COPILOT!"
+    call :safe_reg_add "!KEY_COPILOT!" "!VAL_COPILOT!" 1 || set /a REG_FAIL+=1
+)
+
+:: Disable Telemetry
+echo Disabling Windows Telemetry...
+set "KEY_TELEMETRY=HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection"
+set "VAL_TELEMETRY=AllowTelemetry"
+call :safe_reg_add "!KEY_TELEMETRY!" "!VAL_TELEMETRY!" 0 || (
+    call :take_ownership "!KEY_TELEMETRY!"
+    call :safe_reg_add "!KEY_TELEMETRY!" "!VAL_TELEMETRY!" 0 || set /a REG_FAIL+=1
+)
 
 if %REG_FAIL% gtr 0 (
     call :log warn "Partial configuration applied"

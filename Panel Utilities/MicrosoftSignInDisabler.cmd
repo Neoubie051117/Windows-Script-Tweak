@@ -1,30 +1,29 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: -------------------------------
-:: Admin Check: Must run as Administrator
-:: -------------------------------
+:: ----------------------------------
+:: Check for Administrator Privileges
+:: ----------------------------------
 NET FILE 1>NUL 2>&1 || (
     call :log error "ADMINISTRATOR PRIVILEGES REQUIRED"
     timeout /t 3 /nobreak >nul
     exit /b 1
 )
 
+:: Registry Path Shortcuts
 set "REG_ROOT=HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies"
 set "REG_UI=%REG_ROOT%\System"
 set "REG_VIS=%REG_ROOT%\Explorer"
 
-:: -------------------------------
-:: Main Menu
-:: -------------------------------
+
 :menu
 cls
-call :log info " <> Microsoft Sign-In Access Manager"
+call :log success " <> Microsoft Sign-In Access Manager"
 echo.
-call :log progress " [1] Disable Microsoft Account Sign-In"
-call :log progress " [2] Enable Microsoft Account Sign-In"
+call :log info " [1] Disable Microsoft Account Sign-In"
+call :log info " [2] Enable Microsoft Account Sign-In (with Store Fix)"
 echo.
-call :log progress " [0] Exit"
+call :log warning " [0] Exit"
 echo.
 set "user_choice="
 set /p "user_choice=>> "
@@ -36,94 +35,138 @@ call :log error "Invalid option. Please enter 1, 2, or 0."
 pause
 goto menu
 
-::# -------------------------------
-::# Disable Module (UI Restrictions Only)
-::# -------------------------------
-:disable
-call :log action "Applying UI restrictions..."
 
-:: Core security policy update
+
+:: DISABLE MICROSOFT SIGN-IN
+:disable
+call :log action "Applying UI and account restrictions..."
+
+:: Ensure registry keys exist before adding values
+reg query "%REG_UI%" >nul 2>&1 || reg add "%REG_UI%" /f >nul
+reg query "%REG_VIS%" >nul 2>&1 || reg add "%REG_VIS%" /f >nul
+
+:: Disable connected account use
 reg add "%REG_UI%" /v NoConnectedUser /t REG_DWORD /d 3 /f >nul || goto :reg_failure
 reg add "%REG_UI%" /v BlockMicrosoftAccount /t REG_DWORD /d 1 /f >nul || goto :reg_failure
 
-:: Settings page customization
+:: Hide Sign-in options from Settings UI
 reg add "%REG_VIS%" /v SettingsPageVisibility /t REG_SZ /d "hide:signinoptions" /f >nul && (
     call :log success " - Settings menu item hidden"
 ) || (
-    call :log warning " - Existing settings restriction not modified"
+    call :log warning " - Settings visibility not modified"
 )
 
+:: Prevent re-enabling through Settings App
+reg add "HKLM\SOFTWARE\Microsoft\PolicyManager\default\Settings\AllowYourAccount" /v Value /t REG_DWORD /d 0 /f >nul
+
 call :finalize_changes
-call :log success "SIGN-IN UI DISABLED - Store/Outlook services remain active"
+call :log success "SIGN-IN UI DISABLED - Store/Outlook may have limited functionality"
 pause
 exit /b 0
 
-::# -------------------------------
-::# Enable Module
-::# -------------------------------
-:enable
-call :log action "Restoring default access..."
 
-:: Policy reversion with legacy value cleanup
+
+:: ENABLE MICROSOFT SIGN-IN & FIX STORE
+:enable
+call :log action "Restoring sign-in access and fixing Microsoft Store..."
+
+:: Re-enable account UI
 reg add "%REG_UI%" /v NoConnectedUser /t REG_DWORD /d 0 /f >nul
 reg add "%REG_UI%" /v BlockMicrosoftAccount /t REG_DWORD /d 0 /f >nul
-reg delete "%REG_VIS%" /v SettingsPageVisibility /f >nul 2>&1 && (
-    call :log success " - Settings visibility restored"
+reg delete "%REG_VIS%" /v SettingsPageVisibility /f >nul 2>&1
+
+:: Remove policy restriction if present
+reg delete "HKLM\SOFTWARE\Microsoft\PolicyManager\default\Settings\AllowYourAccount" /f >nul 2>&1
+
+:: Restart related services safely
+call :log action "Restarting related services..."
+call :start_service "wlidsvc" "Microsoft Sign-in Assistant"
+call :start_service "tokenbroker" "Token Broker"
+call :start_service "wuauserv" "Windows Update"
+
+:: Clear MS Store cache (safe even if in use)
+call :log action "Resetting Microsoft Store cache..."
+start /wait "" "wsreset.exe"
+if errorlevel 1 (
+    call :log warning " - wsreset failed or Store was busy"
+    taskkill /f /im WinStore.App.exe >nul 2>&1
+    timeout /t 2 /nobreak >nul
+    start /wait "" "wsreset.exe"
 )
 
+:: Fix networking just in case Store had DNS or socket issues
+ipconfig /flushdns >nul
+netsh winsock reset >nul
+netsh int ip reset >nul
+
 call :finalize_changes
-call :log success "SIGN-IN OPTIONS ENABLED SYSTEM WIDE"
+call :log success "SIGN-IN ENABLED - Store and services should now work properly"
 pause
 exit /b 0
 
-::# -------------------------------
-::# System Finalization Sequence
-::# -------------------------------
+
+:: Finalize Changes (gpupdate, refresh UI)
 :finalize_changes
-call :log info "Finalizing system changes..."
+call :log progress "Finalizing system updates..."
 gpupdate /target:computer /force >nul
 timeout /t 1 /nobreak >nul
 
-taskkill /f /im explorer.exe >nul && (
-    start explorer.exe
-    call :log success " - Shell refreshed successfully"
+:: Restart Explorer to apply UI/reg changes
+taskkill /f /im explorer.exe >nul 2>&1
+timeout /t 1 /nobreak >nul
+start explorer.exe && (
+    call :log success " - User Interface refreshed"
+) || (
+    call :log warning " - Failed to restart explorer, please do it manually"
 )
 exit /b 0
 
-::# -------------------------------
-::# Registry Failure Handler
-::# -------------------------------
+
+:: Registry Write Error Catcher
 :reg_failure
-call :log error "CRITICAL: Registry modification failed"
+call :log error "CRITICAL: Registry modification failed!"
 call :log info "Possible causes:"
 call :log info " - Group Policy override active"
-call :log info " - System file protection interference"
+call :log info " - System file protection is blocking changes"
 exit /b 1
 
-:: -------------------------------
-:: Subroutine: Log Messages with Colors
-:: Parameters: %1 = message type, %2 = message text
-:: -------------------------------
+:: Service Start With Fallback
+:start_service
+:: %1 = Service name, %2 = Display name
+sc query "%~1" | findstr /i "RUNNING" >nul
+if errorlevel 1 (
+    net start "%~1" >nul 2>&1 && (
+        call :log success " - %~2 started"
+    ) || (
+        call :log warning " - %~2 could not be started"
+    )
+) else (
+    call :log info " - %~2 already running"
+)
+exit /b 0
+
+
+:: Message Logging With Color Output
 :log
-setlocal
+setlocal EnableDelayedExpansion
 set "type=%~1"
 set "msg=%~2"
+
+set "ESC=["  :: You can paste real ESC here or use a helper if needed
+
+:: Bright colors
 set "color="
 
-if /I "%type%"=="error" (
-    set "color=4"
-) else if /I "%type%"=="warning" (
-    set "color=6"
-) else if /I "%type%"=="info" (
-    set "color=3"
-) else if /I "%type%"=="progress" (
-    set "color=7"
-) else if /I "%type%"=="critical" (
-    set "color=4F"
-) else (
-    set "color=2"
-)
+if /i "%type%"=="error" set "color=91"          :: Bright Red
+if /i "%type%"=="warning" set "color=93"        :: Bright Yellow
+if /i "%type%"=="info" set "color=96"           :: Bright Cyan
+if /i "%type%"=="progress" set "color=92"       :: Green
+if /i "%type%"=="critical" set "color=97;41"    :: Bright White on Red background
+if /i "%type%"=="" set "color=92"               :: Bright Green (Success default)
 
-powershell -Command "[Console]::ForegroundColor='%color%'; Write-Host '%msg%'; [Console]::ResetColor()"
+:: Print using ANSI colors
+<nul set /p="!ESC!!color!m%msg%!ESC!0m"
+echo.
+
 endlocal
 exit /b 0

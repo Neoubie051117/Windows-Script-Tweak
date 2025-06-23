@@ -20,7 +20,7 @@ if errorlevel 1 (
     exit /b
 )
 
-::-------------------- MAIN MENU: SYSTEM INFO AND OPTIONS --------------------
+::-------------------- SYSTEM INFO AND OPTIONS --------------------
 :WindowsToolScriptMenu
 cls
 call :log success "=========================================================================================================="

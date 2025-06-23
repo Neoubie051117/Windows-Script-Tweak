@@ -38,50 +38,43 @@ set "MAX_RETRIES=3"
 set "PHASE_ERRORS=Phase1:0;Phase2:0;Phase3:0;Phase4:0"
 set "SUPPORTED_WINVER=10.0"
 
-:: ------ Elevation Check ------
+::-------------------- ELEVATION CHECK AND SCRIPT OVERVIEW --------------------
 :init
-echo =============================================================
-echo  Windows Debloater: Privacy, Security, and Performance Boost
-echo =============================================================
+cls
+call :log success "===================================================================================================================="
+call :log info    "                                    WINDOWS DEBLOATER: PRIVACY, SECURITY, PERFORMANCE"
+call :log success "===================================================================================================================="
 echo.
-echo  - Disables Tracking - Blocks telemetry, diagnostics, and Copilot.
-echo  - System Cleanup - Deletes temp files from Temp, %%TEMP%%, Prefetch.
-echo  - Security - Blocks Adobe, Autodesk, and Revit via firewall.
-echo  - Taskbar Tweaks - Removes unnecessary UI elements.
-echo  - Registry Protection - Prevents tracking from re-enabling itself.
-echo  - Backup and Recovery - Saves registry backups in ProgramData.
-echo  - Admin Enforcement - Ensures script runs with admin rights.
-echo  - Error Handling - Logs steps, captures failures, and retries.
+call :log warning "  FEATURES"
 echo.
-echo =============================================================
-echo              Changes and Potential Disadvantages
-echo =============================================================
+call :log info    "  - Disables Tracking         | Blocks telemetry, diagnostics, and Copilot"
+call :log info    "  - System Cleanup            | Deletes temp files (Temp, %%TEMP%%, Prefetch)"
+call :log info    "  - Security Firewall         | Blocks Adobe, Autodesk, Revit via firewall rules"
+call :log info    "  - Taskbar Tweaks            | Removes unneeded taskbar UI elements"
+call :log info    "  - Registry Protection       | Stops tracking from re-enabling itself"
+call :log info    "  - Backup and Recovery       | Backs up registry to %%ProgramData%%"
+call :log info    "  - Admin Enforcement         | Ensures script runs as Administrator"
+call :log info    "  - Error Handling            | Logs actions, catches failures, retries as needed"
 echo.
-echo  - Some Windows features (like Copilot and telemetry) will be disabled.
-echo  - Blocking Adobe/Autodesk/Revit may prevent software from working properly.
-echo  - Taskbar modifications might affect the default UI experience.
-echo  - If something breaks, a registry backup is available in %%ProgramData%%.
+call :log warning "  WARNINGS AND DISADVANTAGES"
 echo.
-echo =============================================================
-echo  [0] Cancel
-echo  [1] Proceed
+call :log info    "  - Copilot, telemetry, and other features will be permanently disabled"
+call :log info    "  - Adobe/Autodesk/Revit may not work correctly when blocked"
+call :log info    "  - Taskbar changes may affect your Windows UI experience"
+call :log info    "  - Registry backups are located in %%ProgramData%% if recovery is needed"
+echo.
+call :log success "===================================================================================================================="
+call :log info    "  [0] Cancel"
+call :log info    "  [1] Proceed"
+call :log success "===================================================================================================================="
 
 :: Get user input
 echo.
 set "choice="
 set /p "choice=>> "
 if /i "%choice%"=="0" (exit /b) else if "%choice%"=="1" (goto :proceed)
-echo Invalid choice, please try again.
+call :log error "Invalid choice. Please try again."
 timeout /t 2 >nul & cls & goto :menu
-
-:: Logging function for tracking script execution
-:log
-setlocal EnableDelayedExpansion
-set "type=%~1"
-set "msg=%~2"
-:: Log format: timestamp, log type, and message
-echo [%DATE% %TIME%] [%type%] %msg% >> "%~dp0log.txt"
-exit /b
 
 :: Proceed with script execution
 :proceed
@@ -100,8 +93,8 @@ set "attempt=0"
 set "MAX_RETRIES=3"
 :reelevate
 set /a attempt+=1
-echo [!] Admin required for system modifications
-echo [!] Attempt !attempt! of %MAX_RETRIES%
+call :log warning "[!] Admin required for system modifications"
+call :log warning "[!] Attempt !attempt! of %MAX_RETRIES%"
 
 :: Try to elevate using runas
 runas /savecred /user:Administrator "!elevate_cmd!" || (
@@ -110,7 +103,7 @@ runas /savecred /user:Administrator "!elevate_cmd!" || (
         goto :reelevate
     )
     call :log critical "Persistent elevation failure"
-    exit /b 1  :: Exit with error code
+    exit /b 1
 )
 exit /b
 
@@ -135,7 +128,8 @@ exit /b 1
 title %SCRIPT_NAME% v%VERSION% - Administrator
 call :log info "Initializing %SCRIPT_NAME% v%VERSION%"
 call :create_backup_dir || exit /b %ERR_BACKUP%
-echo.  &:: Add blank line after backup creation
+echo.  
+:: Add blank line after backup creation
 
 :: ------ Phase Execution ------
 set "phases=Implementing_Bloat_Features Clean_System Security_Configuration Validate_System"
@@ -152,14 +146,17 @@ for %%P in (%phases%) do (
         set /a ERROR_COUNT+=1
         set "PHASE_ERRORS=!PHASE_ERRORS:Phase%current_phase%:0=Phase%current_phase%:1!"
     )
-    echo.  &:: Add blank line after each phase
+    echo.  
+    :: Add blank line after each phase
     timeout /t %PHASE_DELAY% /nobreak >nul
 )
 
 :: ------ Post-Execution ------
-echo.  &:: Add blank line before report
+echo.  
+:: Add blank line before report
 call :report
-echo. & echo Operation complete. Press any key to exit...
+echo. 
+call :log info "Press any key to exit..."
 pause >nul
 exit /b 0
 
@@ -228,7 +225,7 @@ for %%K in (
 )
 
 :: Disable Windows Widgets
-echo Disabling Windows Widgets completely...
+call :log info "Disabling Windows Widgets completely..."
 set "KEY_WIDGETS=HKLM\SOFTWARE\Policies\Microsoft\Windows\Widgets"
 set "VAL_WIDGETS=DisableWidgets"
 call :safe_reg_add "!KEY_WIDGETS!" "!VAL_WIDGETS!" 1 || (
@@ -240,11 +237,11 @@ call :safe_reg_add "!KEY_WIDGETS!" "!VAL_WIDGETS!" 1 || (
 taskkill /f /im Widgets.exe >nul 2>&1
 
 :: Optional: Uninstall Widgets Web Experience Pack (Win11 only)
-echo Removing Windows Web Experience Pack (Widgets Shell)...
+call :log info "Removing Windows Web Experience Pack (Widgets Shell)..."
 powershell -Command "Get-AppxPackage *WebExperience* | Remove-AppxPackage" >nul 2>&1
 
 :: Disable Windows Recall
-echo Disabling Windows Recall (Activity Feed)...
+call :log info "Disabling Windows Recall (Activity Feed)..."
 set "KEY_RECALL=HKLM\SOFTWARE\Policies\Microsoft\Windows\System"
 set "VAL_RECALL=EnableActivityFeed"
 call :safe_reg_add "!KEY_RECALL!" "!VAL_RECALL!" 0 || (
@@ -253,7 +250,7 @@ call :safe_reg_add "!KEY_RECALL!" "!VAL_RECALL!" 0 || (
 )
 
 :: Disable News and Weather
-echo Disabling News and Interests (Feeds)...
+call :log info "Disabling News and Interests (Feeds)..."
 set "KEY_FEEDS=HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds"
 set "VAL_FEEDS=EnableFeeds"
 call :safe_reg_add "!KEY_FEEDS!" "!VAL_FEEDS!" 0 || (
@@ -262,7 +259,7 @@ call :safe_reg_add "!KEY_FEEDS!" "!VAL_FEEDS!" 0 || (
 )
 
 :: Enable Taskbar End Task option
-echo Enabling End Task option in Taskbar right-click...
+call :log info "Enabling End Task option in Taskbar right-click..."
 set "KEY_ENDTASK=HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
 set "VAL_ENDTASK=TaskbarEndTask"
 call :safe_reg_add "!KEY_ENDTASK!" "!VAL_ENDTASK!" 1 || (
@@ -270,14 +267,12 @@ call :safe_reg_add "!KEY_ENDTASK!" "!VAL_ENDTASK!" 1 || (
     reg add "!KEY_ENDTASK!" /v "!VAL_ENDTASK!" /t REG_DWORD /d 1 /f >nul 2>&1 || set /a REG_FAIL+=1
 )
 
-:: Disable Search Indexing
-echo Disabling Windows Search Indexing and Web Suggestions...
-set "KEY_INDEXING=HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search"
-set "VAL_INDEXING=DisableBackoff"
-call :safe_reg_add "!KEY_INDEXING!" "!VAL_INDEXING!" 1 || (
-    call :take_ownership "!KEY_INDEXING!"
-    call :safe_reg_add "!KEY_INDEXING!" "!VAL_INDEXING!" 1 || set /a REG_FAIL+=1
-)
+:: Disable Web Search from Start Menu
+call :log info "Disabling Web Search Suggestions in Start Menu..."
+reg add "HKCU\Software\Policies\Microsoft\Windows\Explorer" /v "DisableSearchBoxSuggestions" /t REG_DWORD /d 1 /f >nul
+reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Search" /v "BingSearchEnabled" /t REG_DWORD /d 0 /f >nul
+reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Search" /v "CortanaConsent" /t REG_DWORD /d 0 /f >nul
+
 
 :: Disable Bing Web Search and Suggestions in Start Menu
 set "KEY_BING=HKCU\Software\Microsoft\Windows\CurrentVersion\Search"
@@ -298,14 +293,14 @@ call :safe_reg_add "!KEY_SEARCHPOL!" "DisableSearchBoxSuggestions" 1 || (
 
 
 :: Optional: Also prevent indexing in Outlook (commonly tied to Windows Search policy)
-echo Preventing Outlook Indexing (Search group policy)...
+call :log info "Preventing Outlook Indexing (Search group policy)..."
 set "VAL_SEARCHDISABLE=PreventIndexingOutlook"
 call :safe_reg_add "!KEY_INDEXING!" "!VAL_SEARCHDISABLE!" 1 || (
     call :safe_reg_add "!KEY_INDEXING!" "!VAL_SEARCHDISABLE!" 1 || set /a REG_FAIL+=1
 )
 
 :: Disable Windows Copilot
-echo Disabling Windows Copilot...
+call :log info "Disabling Windows Copilot..."
 set "KEY_COPILOT=HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Copilot"
 set "VAL_COPILOT=TurnOffWindowsCopilot"
 call :safe_reg_add "!KEY_COPILOT!" "!VAL_COPILOT!" 1 || (
@@ -314,7 +309,7 @@ call :safe_reg_add "!KEY_COPILOT!" "!VAL_COPILOT!" 1 || (
 )
 
 :: Disable Telemetry
-echo Disabling Windows Telemetry...
+call :log info "Disabling Windows Telemetry..."
 set "KEY_TELEMETRY=HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection"
 set "VAL_TELEMETRY=AllowTelemetry"
 call :safe_reg_add "!KEY_TELEMETRY!" "!VAL_TELEMETRY!" 0 || (
@@ -546,7 +541,7 @@ exit /b 0
 :: ===== Phase 4: System Validation =====
 :Validate_System
 echo.
-echo  Running essential system validation...
+call :log progress "Running essential system validation..."
 echo.
 goto :Essential_Validation
 
@@ -630,22 +625,22 @@ exit /b %errorCount%
 
 
 :report
-echo --------------------------------------------------
-echo [%SCRIPT_NAME% v%VERSION% - Diagnostic Report]
-echo --------------------------------------------------
-echo Backup Directory: %BACKUP_DIR%
+call :log success " --------------------------------------------------"
+call :log info " [%SCRIPT_NAME% v%VERSION% - Diagnostic Report]"
+call :log success " --------------------------------------------------"
+call :log success " Backup Directory: %BACKUP_DIR% "
 if not "%PHASE_ERRORS%"=="Phase1:0;Phase2:0;Phase3:0;Phase4:0" (
-    echo Failed Phases:   %PHASE_ERRORS%
+    call :log error " Failed Phases:   %PHASE_ERRORS% "
 )
-echo Total Issues:    %ERROR_COUNT%
-echo System Health:   %HEALTH_STATUS%
-echo Reboot Required: %REBOOT_FLAG%
-echo --------------------------------------------------
+call :log warning " Total Issues:    %ERROR_COUNT% "
+call :log info " System Health:   %HEALTH_STATUS% "
+call :log warning " Reboot Required: %REBOOT_FLAG% "
+call :log success " --------------------------------------------------
 if exist "%BACKUP_DIR%\*.html" (
-    echo Additional Reports:
+    call :log success " Additional Reports: "
     dir /b "%BACKUP_DIR%\*.html"
 )
-echo --------------------------------------------------
+call :log success " -------------------------------------------------- "
 exit /b 0
 
 ::-------------------- LOG FUNCTION WITH ANSI COLOR OUTPUT --------------------

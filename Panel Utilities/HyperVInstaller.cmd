@@ -24,18 +24,58 @@ if errorlevel 1 (
 :HyperVInstaller
 cls
 color 0A
+call :log info ">> Checking if Hyper-V is already enabled..."
 
-pushd "%~dp0"
+:: Check if Hyper-V is already enabled
+dism /online /get-featureinfo /featurename:Microsoft-Hyper-V | findstr /i "Enabled" >nul
+if %errorlevel%==0 (
+    call :log success "Hyper-V is already enabled on this system."
+    timeout /t 5 >nul
+    goto :eof
+)
 
-dir /b %SystemRoot%\servicing\Packages\*Hyper-V*.mum >hyper-v.txt
 
-for /f %%i in ('findstr /i . hyper-v.txt 2^>nul') do dism /online /norestart /add-package:"%SystemRoot%\servicing\Packages\%%i"
+:: Step 1: Check if Packages exist
+set "hyperVList=%TEMP%\hyper-v.txt"
+dir /b %SystemRoot%\servicing\Packages\*Hyper-V*.mum > "%hyperVList%" 2>nul
 
-del hyper-v.txt
+if not exist "%hyperVList%" (
+    call :log error "!! No Hyper-V packages found. This system may not support Hyper-V."
+    goto :eof
+)
 
-Dism /online /enable-feature /featurename:Microsoft-Hyper-V -All /LimitAccess /ALL
+:: Step 2: Install all Hyper-V packages
+call :log progress "Installing Hyper-V required packages..."
+set "installFail=false"
+for /f %%i in ('findstr /i . "%hyperVList%" 2^>nul') do (
+    dism /online /norestart /add-package:"%SystemRoot%\servicing\Packages\%%i" >nul
+    if errorlevel 1 (
+        call :log warning "  - Failed: %%i"
+        set "installFail=true"
+    ) else (
+        call :log info "  - Installed: %%i"
+    )
+)
+
+del /f /q "%hyperVList%" >nul 2>&1
+
+:: Step 3: Enable Feature
+call :log progress "Enabling Hyper-V feature..."
+Dism /online /enable-feature /featurename:Microsoft-Hyper-V -All /LimitAccess /Quiet
+if errorlevel 1 (
+    call :log error "!! Hyper-V feature failed to enable."
+    goto :eof
+)
+
+:: Step 4: Final result
+if "%installFail%"=="true" (
+    call :log warning "Some packages failed, but Hyper-V feature was enabled. A restart may be required."
+) else (
+    call :log success "Hyper-V installation and enablement complete."
+)
 
 pause
+goto :eof
 
 ::-------------------- LOG FUNCTION WITH ANSI COLOR OUTPUT --------------------
 :log

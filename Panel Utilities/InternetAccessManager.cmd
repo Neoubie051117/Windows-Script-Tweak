@@ -20,16 +20,17 @@ if errorlevel 1 (
     exit /b
 )
 
-:: Configuration
+::-------------------- CONFIGURATION ::--------------------
 set "WINGET_IGNORE_LIST=%SystemDrive%\winget_ignore.txt"
 set "EXCLUSIONS=C:\Program Files\WindowsApps;C:\Program Files\winget"
 color 07
 
 :InternetAccessManager
 cls
-color A
 echo.
-echo ^<^> Internet Access Manager
+call :log success "===================================================================================================================="
+call :log info "                                                   INTERNET ACCESS MANAGER"
+call :log success "===================================================================================================================="
 echo.
 echo.
 call :log info " [1] Block Internet Access      "
@@ -37,7 +38,7 @@ call :log info " [2] Unblock Internet Access"
 call :log info ""
 call :log warning " [0] Cancel"
 echo.
-set /p choice=">> " 
+set /p choice=" >> " 
 
 :: Validate menu option
 if "%choice%"=="1" goto blockInternetAccess

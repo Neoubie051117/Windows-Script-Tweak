@@ -23,21 +23,23 @@ if errorlevel 1 (
 ::-------------------- DNS CONFIGURATION MENU --------------------
 :AddDNSConfiguration
 cls
-color 0A
-call :log success "=================================================[ DNS Configuration Menu ]========================================="
-echo.
-call :log warning "        DNS                 IPV4                                                IPV6                                Hostname"
-echo.
-call :log info " [1] Google DNS      (8.8.8.8 / 8.8.4.4)                   (2001:4860:4860::8888 / 2001:4860:4860::8844)        dns.google"
-call :log info " [2] Adguard DNS     (94.140.14.14 / 94.140.15.15)         (2a10:50c0::ad1:ff / 2a10:50c0::ad2:ff)              dns.adguard.com"
-call :log info " [3] Cloudflare DNS  (1.1.1.1 / 1.0.0.1)                   (2606:4700:4700::1111 / 2606:4700:4700::1001)        one.one.one.one"
-call :log info " [4] Open DNS        (208.67.220.220 / 208.67.222.222)     (2620:119:35::35 / 2620:119:53::53)                  dns.opendns.com"
-call :log warning " [5] Remove DNS Settings (IPv4 and IPv6)"
-echo.
-call :log warning " [0] Back to Main Menu"
+call :log success "===================================================================================================================="
+call :log info    "                                                   DNS CONFIGURATION OPTION"
+call :log success "===================================================================================================================="
 echo.
 echo.
-set /p "choice=>> "
+call :log warning "       DNS                 IPV4                                                IPV6                                Hostname"
+echo.
+call :log info    "[1] Google DNS      (8.8.8.8 / 8.8.4.4)                   (2001:4860:4860::8888 / 2001:4860:4860::8844)        dns.google"
+call :log info    "[2] Adguard DNS     (94.140.14.14 / 94.140.15.15)         (2a10:50c0::ad1:ff / 2a10:50c0::ad2:ff)              dns.adguard.com"
+call :log info    "[3] Cloudflare DNS  (1.1.1.1 / 1.0.0.1)                   (2606:4700:4700::1111 / 2606:4700:4700::1001)        one.one.one.one"
+call :log info    "[4] Open DNS        (208.67.220.220 / 208.67.222.222)     (2620:119:35::35 / 2620:119:53::53)                  dns.opendns.com"
+call :log warning "[5] Remove DNS Settings (IPv4 and IPv6)"
+echo.
+call :log warning "[0] Back to Main Menu"
+echo.
+echo.
+set /p "choice= >> "
 
 
 if "%choice%"=="1" call :ConfigureDNS "Google" "8.8.8.8" "8.8.4.4" "2001:4860:4860::8888" "2001:4860:4860::8844"

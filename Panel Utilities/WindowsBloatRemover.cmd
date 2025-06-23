@@ -28,8 +28,8 @@ set "ERROR_COUNT=0"
 set "BACKUP_ROOT=RegistryBackups"
 set "TEMP_PATHS=%TEMP%|%windir%\Temp"
 set "FIREWALL_BLOCKLIST=C:\Program Files\Adobe|C:\Program Files\Autodesk|C:\Program Files\Revit"
-set "REBOOT_FLAG=No"
-set "HEALTH_STATUS=Optimal"
+set "REBOOT_FLAG= Not Required"
+set "HEALTH_STATUS= Optimized"
 set "ADMIN_TIMEOUT=7"
 set "ERR_ADMIN=100"
 set "ERR_BACKUP=201"
@@ -236,9 +236,9 @@ call :safe_reg_add "!KEY_WIDGETS!" "!VAL_WIDGETS!" 1 || (
 :: Kill Widgets process if running
 taskkill /f /im Widgets.exe >nul 2>&1
 
-:: Optional: Uninstall Widgets Web Experience Pack (Win11 only)
-call :log info "Removing Windows Web Experience Pack (Widgets Shell)..."
-powershell -Command "Get-AppxPackage *WebExperience* | Remove-AppxPackage" >nul 2>&1
+:: Optional: Leave Web Experience Pack installed to prevent Settings issues
+call :log info "Leaving Windows Web Experience Pack installed (avoiding Settings break)..."
+REM powershell -Command "Get-AppxPackage *WebExperience* | Remove-AppxPackage" >nul 2>&1
 
 :: Disable Windows Recall
 call :log info "Disabling Windows Recall (Activity Feed)..."
@@ -273,7 +273,6 @@ reg add "HKCU\Software\Policies\Microsoft\Windows\Explorer" /v "DisableSearchBox
 reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Search" /v "BingSearchEnabled" /t REG_DWORD /d 0 /f >nul
 reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Search" /v "CortanaConsent" /t REG_DWORD /d 0 /f >nul
 
-
 :: Disable Bing Web Search and Suggestions in Start Menu
 set "KEY_BING=HKCU\Software\Microsoft\Windows\CurrentVersion\Search"
 call :safe_reg_add "!KEY_BING!" "BingSearchEnabled" 0 || (
@@ -291,13 +290,10 @@ call :safe_reg_add "!KEY_SEARCHPOL!" "DisableSearchBoxSuggestions" 1 || (
     call :safe_reg_add "!KEY_SEARCHPOL!" "DisableSearchBoxSuggestions" 1 || set /a REG_FAIL+=1
 )
 
-
-:: Optional: Also prevent indexing in Outlook (commonly tied to Windows Search policy)
-call :log info "Preventing Outlook Indexing (Search group policy)..."
-set "VAL_SEARCHDISABLE=PreventIndexingOutlook"
-call :safe_reg_add "!KEY_INDEXING!" "!VAL_SEARCHDISABLE!" 1 || (
-    call :safe_reg_add "!KEY_INDEXING!" "!VAL_SEARCHDISABLE!" 1 || set /a REG_FAIL+=1
-)
+:: Skip Outlook indexing policy to prevent breaking Windows Search integration
+call :log info "Skipping Outlook indexing block to preserve system search..."
+REM set "KEY_INDEXING=HKCU\Software\Policies\Microsoft\Windows\Search"
+REM call :safe_reg_add "!KEY_INDEXING!" "PreventIndexingOutlook" 1
 
 :: Disable Windows Copilot
 call :log info "Disabling Windows Copilot..."
@@ -308,13 +304,13 @@ call :safe_reg_add "!KEY_COPILOT!" "!VAL_COPILOT!" 1 || (
     call :safe_reg_add "!KEY_COPILOT!" "!VAL_COPILOT!" 1 || set /a REG_FAIL+=1
 )
 
-:: Disable Telemetry
-call :log info "Disabling Windows Telemetry..."
+:: Disable Telemetry (safe setting for Pro/Home)
+call :log info "Disabling Windows Telemetry (Basic level)..."
 set "KEY_TELEMETRY=HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection"
 set "VAL_TELEMETRY=AllowTelemetry"
-call :safe_reg_add "!KEY_TELEMETRY!" "!VAL_TELEMETRY!" 0 || (
+call :safe_reg_add "!KEY_TELEMETRY!" "!VAL_TELEMETRY!" 1 || (
     call :take_ownership "!KEY_TELEMETRY!"
-    call :safe_reg_add "!KEY_TELEMETRY!" "!VAL_TELEMETRY!" 0 || set /a REG_FAIL+=1
+    call :safe_reg_add "!KEY_TELEMETRY!" "!VAL_TELEMETRY!" 1 || set /a REG_FAIL+=1
 )
 
 if %REG_FAIL% gtr 0 (
@@ -513,7 +509,7 @@ if !bl_status! equ 1 (
         
         if !errorlevel! equ 0 (
             call :log success "Successfully disabled BitLocker on %%D"
-            set "REBOOT_FLAG=Yes"
+            set "REBOOT_FLAG= Required"
             
             REM Check if decryption is complete
             manage-bde -status %%D | find "Percentage Encrypted: 0%%" >nul
@@ -625,22 +621,22 @@ exit /b %errorCount%
 
 
 :report
-call :log success " --------------------------------------------------"
-call :log info " [%SCRIPT_NAME% v%VERSION% - Diagnostic Report]"
-call :log success " --------------------------------------------------"
-call :log success " Backup Directory: %BACKUP_DIR% "
-if not "%PHASE_ERRORS%"=="Phase1:0;Phase2:0;Phase3:0;Phase4:0" (
-    call :log error " Failed Phases:   %PHASE_ERRORS% "
+call :log success "--------------------------------------------------"
+call :log info "[%SCRIPT_NAME% v%VERSION% - Diagnostic Report]"
+call :log success "--------------------------------------------------"
+call :log success "Backup Directory: %BACKUP_DIR% "
+if not "%PHASE_ERRORS%"=="Phase1:0;Phase2:0;Phase3:0;Phase4:0"(
+    call :log error "Failed Phases:   %PHASE_ERRORS% "
 )
-call :log warning " Total Issues:    %ERROR_COUNT% "
-call :log info " System Health:   %HEALTH_STATUS% "
-call :log warning " Reboot Required: %REBOOT_FLAG% "
-call :log success " --------------------------------------------------
-if exist "%BACKUP_DIR%\*.html" (
-    call :log success " Additional Reports: "
+call :log warning "Total Issues:    %ERROR_COUNT% "
+call :log info "System Health:   %HEALTH_STATUS% "
+call :log warning "Reboot Required: %REBOOT_FLAG% "
+call :log success "--------------------------------------------------
+if exist "%BACKUP_DIR%\*.html"(
+    call :log success "Additional Reports: "
     dir /b "%BACKUP_DIR%\*.html"
 )
-call :log success " -------------------------------------------------- "
+call :log success "-------------------------------------------------- "
 exit /b 0
 
 ::-------------------- LOG FUNCTION WITH ANSI COLOR OUTPUT --------------------

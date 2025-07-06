@@ -1,4 +1,5 @@
 @echo off
+cls
 setlocal enabledelayedexpansion
 
 ::-------------------- CHECK FOR ADMIN PRIVILEGES --------------------
@@ -45,55 +46,71 @@ exit /b 0
 
 ::-------------------- XNA INSTALLER --------------------
 :InstallXNA
-set "xnaRegPath=HKLM\SOFTWARE\Microsoft\XNA\Framework\v4.0"
-reg query "%xnaRegPath%" /v Installed >nul 2>&1
+set "FILENAME=%TEMP%\xnafx40.msi"
+set "FALLBACK_XNA=https://archive.org/download/xnafx40_redist/xnafx40_redist.msi"
+set "LOGFILE=%TEMP%\xna_install.log"
+set "XNA_PRODUCT_CODE={2BFC7AA0-544C-4E3A-8796-67F3BE655BE9}"
+
+:: Check if already installed via known folder
+if exist "%ProgramFiles(x86)%\Microsoft XNA\XNA Game Studio\v4.0\Redist\XNA FX Redist" (
+    call :log info "XNA install folder exists. Skipping."
+    exit /b 0
+)
+
+:: Check via registry
+reg query "HKLM\SOFTWARE\Microsoft\XNA\Framework\v4.0" /v Installed >nul 2>&1
 if %errorlevel%==0 (
-    call :log info "XNA Framework 4.0 already installed."
+    for /f "tokens=3" %%a in ('reg query "HKLM\SOFTWARE\Microsoft\XNA\Framework\v4.0" /v Installed 2^>nul') do set "alreadyInstalled=%%a"
+    if "!alreadyInstalled!"=="1" (
+        call :log info "XNA already installed in registry. Skipping."
+        exit /b 0
+    )
+)
+
+:: Check via MSI (product code)
+powershell -Command ^
+  "if (Get-WmiObject -Class Win32_Product -Filter \"IdentifyingNumber='%XNA_PRODUCT_CODE%'\" -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"
+if %errorlevel%==0 (
+    call :log info "XNA already managed by Windows Installer. Skipping to avoid 1603 reconfiguration error."
     exit /b 0
 )
 
 call :log progress "Installing XNA Framework 4.0..."
-set "FILENAME=%TEMP%\xnafx40.msi"
-set "FALLBACK_XNA=https://archive.org/download/xnafx40_redist/xnafx40_redist.msi"
+
+:: Primary download
 if exist "%FILENAME%" del /f /q "%FILENAME%"
 powershell -Command "try { Invoke-WebRequest -Uri '%XNA_URL%' -OutFile '%FILENAME%' -ErrorAction Stop } catch { exit 1 }"
 
-set "tryFallback="
-if not exist "%FILENAME%" set "tryFallback=true"
-for %%I in ("%FILENAME%") do set "size=%%~zI"
-if "!size!" LSS 1000000 set "tryFallback=true"
+:: Check file size
+if not exist "%FILENAME%" (
+    set "tryFallback=true"
+) else (
+    for %%I in ("%FILENAME%") do set "size=%%~zI"
+    if !size! LSS 1000000 set "tryFallback=true"
+)
 
+:: Fallback if needed
 if defined tryFallback (
     call :log warning "Primary download failed or file too small. Trying fallback..."
     if exist "%FILENAME%" del /f /q "%FILENAME%"
-    for /f "tokens=2 delims=:" %%A in ('powershell -Command "(Invoke-WebRequest '%FALLBACK_XNA%').Headers['Content-Length']"') do set "expectedSize=%%A"
     powershell -Command "try { Invoke-WebRequest -Uri '%FALLBACK_XNA%' -OutFile '%FILENAME%' -ErrorAction Stop } catch { exit 1 }"
     if not exist "%FILENAME%" (
         call :log error "Fallback download failed. Manual install may be needed:"
         echo https://archive.org/download/xnafx40_redist/xnafx40_redist.msi
         exit /b 1
     )
-    for %%I in ("%FILENAME%") do set "actualSize=%%~zI"
-    if defined expectedSize (
-        set /a margin=%expectedSize%*90/100
-        if !actualSize! LSS !margin! (
-            call :log warning "Fallback downloaded, but size is low (!actualSize! bytes). Expected ~%expectedSize% bytes. Proceeding anyway..."
-        ) else (
-            call :log success "Downloaded XNA Framework from fallback URL. Size: !actualSize! bytes"
-        )
-    ) else (
-        call :log info "Could not verify expected size. Downloaded size: !actualSize! bytes"
-    )
 )
 
-msiexec /i "%FILENAME%" /quiet /norestart
+:: Final install
+start /wait msiexec /i "%FILENAME%" /quiet /norestart /log "%LOGFILE%"
 set "code=%ERRORLEVEL%"
 if %code% neq 0 (
-    call :log error "XNA installation failed with code %code%."
+    call :log error "XNA installation failed with code %code%. See log: %LOGFILE%"
 ) else (
     call :log success "XNA Framework 4.0 installed successfully."
+    del /f /q "%FILENAME%"
+    del /f /q "%LOGFILE%"
 )
-del /f /q "%FILENAME%"
 exit /b %code%
 
 ::-------------------- DIRECTX INSTALLER --------------------

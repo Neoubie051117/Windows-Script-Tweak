@@ -46,7 +46,7 @@ call :log info "[2] System Properties (Sysdm.cpl)                               
 call :log info "[3] System Information (MSINFO32)                                      [13] Internet Access Manager"
 call :log info "[4] System Configuration (MSConfig)                                    [14] Disable Windows Bloat  (Experimental!)"
 call :log info "[5] Disk Cleanup Utility (Cleanmgr)                                    [15] Microsoft Sign In Disable"
-call :log info "[6] Disk Defragmenter (Dfrgui)"
+call :log info "[6] Disk Defragmenter (Dfrgui)                                         [16] Windows Defender Exclusion Manager"
 call :log info "[7] Windows Package Manager (Winget)"
 call :log info "[8] System File Checker (SFC)"
 call :log info "[9] Add DNS Configuration (IPv4 & IPv6 DNS Integration)"
@@ -85,6 +85,7 @@ if "%menuOptions%"=="12" call "%~dp0Panel Utilities\SandboxInstaller.cmd"
 if "%menuOptions%"=="13" call "%~dp0Panel Utilities\InternetAccessManager.cmd"
 if "%menuOptions%"=="14" call "%~dp0Panel Utilities\WindowsBloatRemover.cmd"
 if "%menuOptions%"=="15" call "%~dp0Panel Utilities\MicrosoftSignInDisabler.cmd"
+if "%menuOptions%"=="16" call "%~dp0Panel Utilities\WindowsDefenderExclusionManager.cmd"
 
 goto :WindowsToolScriptMenu
 
